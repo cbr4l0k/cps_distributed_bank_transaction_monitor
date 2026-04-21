@@ -36,3 +36,17 @@ impl Header {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Header;
+
+    #[test]
+    fn header_round_trips_through_bytes() {
+        let header = Header::new(42, 1337, 1_700_000_000);
+
+        let decoded = Header::from_byte_stream(header.to_byte_stream());
+
+        assert_eq!(decoded, header);
+    }
+}

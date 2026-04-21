@@ -56,3 +56,55 @@ pub fn decrypt_packet(key: &[u8; 32], packet: &[u8]) -> Result<(Header, Transact
 
     Ok((header, transaction))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{PACKET_LEN, decrypt_packet, encrypt_packet};
+    use crate::datagram::Header;
+    use crate::errors::DisgramsError;
+    use crate::transaction::{Transaction, TransactionType};
+
+    #[test]
+    fn encrypted_packet_round_trips_header_and_transaction() {
+        let key = [7; 32];
+        let nonce = [3; 12];
+        let header = Header::new(42, 1337, 1_700_000_000);
+        let transaction = Transaction::new(123, 45.5, TransactionType::Deposit);
+
+        let packet = encrypt_packet(&key, header, nonce, transaction).unwrap();
+        let (decoded_header, decoded_transaction) = decrypt_packet(&key, &packet).unwrap();
+
+        assert_eq!(packet.len(), PACKET_LEN);
+        assert_eq!(decoded_header, header);
+        assert_eq!(decoded_transaction, transaction);
+    }
+
+    #[test]
+    fn decrypt_rejects_wrong_packet_length() {
+        let key = [7; 32];
+        let packet = vec![0; PACKET_LEN - 1];
+
+        let err = decrypt_packet(&key, &packet).unwrap_err();
+
+        assert!(matches!(
+            err,
+            DisgramsError::InvalidPacketLength(actual, expected)
+                if actual == PACKET_LEN - 1 && expected == PACKET_LEN
+        ));
+    }
+
+    #[test]
+    fn decrypt_rejects_wrong_key() {
+        let packet = encrypt_packet(
+            &[7; 32],
+            Header::new(42, 1337, 1_700_000_000),
+            [3; 12],
+            Transaction::new(123, 45.5, TransactionType::Deposit),
+        )
+        .unwrap();
+
+        let err = decrypt_packet(&[8; 32], &packet).unwrap_err();
+
+        assert!(matches!(err, DisgramsError::DecryptionFailed));
+    }
+}
