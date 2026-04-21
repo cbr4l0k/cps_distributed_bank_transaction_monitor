@@ -1,0 +1,33 @@
+[workspace]
+members = [
+    "tran_c",
+    "sender",
+    "receiver",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["cbr4l0k"]
+license = "MIT"
+
+# Shared dependency versions — members inherit these with `dep.workspace = true`
+[workspace.dependencies]
+tran_c = { path = "tran_c" }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bytes = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

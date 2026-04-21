@@ -1,0 +1,22 @@
+[package]
+name = "receiver"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# Hosted on DigitalOcean — x86_64-unknown-linux-gnu
+[dependencies]
+tran_c = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# HTTP server
+axum = "0.8"
+
+# SQL (async, compile-time checked queries)
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "migrate"] }

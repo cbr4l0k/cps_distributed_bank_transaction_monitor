@@ -1,0 +1,16 @@
+[package]
+name = "sender"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# Target: Raspberry Pi Zero 2W — aarch64-unknown-linux-musl (Alpine Linux)
+[dependencies]
+tran_c = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
