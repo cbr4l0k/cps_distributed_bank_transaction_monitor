@@ -6,7 +6,5 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-serde = { workspace = true }
-bytes = { workspace = true }
 thiserror = { workspace = true }
 aes-gcm = { workspace = true }
