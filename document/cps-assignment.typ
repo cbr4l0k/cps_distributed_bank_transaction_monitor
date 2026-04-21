@@ -1,6 +1,6 @@
 #set document(
   title: "Cyber-Physical System: Distributed Bank Transaction Monitor",
-  author: "JP",
+  author: "Man o nena tan lind@  el que lea esto <3",
 )
 
 #set page(
@@ -25,6 +25,7 @@
 #set heading(numbering: "1.")
 
 #show heading.where(level: 1): it => {
+  pagebreak(weak: true)
   v(1.2em)
   text(13pt, weight: "bold", it)
   v(0.4em)
@@ -36,8 +37,9 @@
   v(0.3em)
 }
 
+#v(1fr)
+
 #align(center)[
-  #v(1cm)
   #text(16pt, weight: "bold")[
     Cyber-Physical System: \
     Distributed Bank Transaction Monitor
@@ -49,8 +51,7 @@
     Assignment — Cyber-Physical Systems \
     ITMO University · #datetime.today().display("[month repr:long] [year]")
   ]
-  #v(1cm)
-#align(center)[
+  #v(1.5cm)
   #block(
     fill: rgb("#f7f9fb"),
     stroke: 0.5pt + rgb("#b0bec5"),
@@ -66,12 +67,18 @@
   ]
 ]
 
-  #v(1cm)
-  #line(length: 100%, stroke: 0.5pt + rgb("#aaaaaa"))
-  #v(0.8cm)
-]
+#v(1fr)
 
-= Purpose of Use
+#pagebreak()
+
+#outline(
+  title: "Contents",
+  indent: auto,
+)
+
+= Plan
+
+== Purpose of Use
 
 The system described in this document simulates a minimal banking
 infrastructure using two edge computing nodes — each acting as an independent
@@ -91,7 +98,7 @@ an interactive dashboard.
 #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
 #v(0.4em)
 
-= System Architecture Overview
+== System Architecture Overview
 
 The system is composed of five hierarchical layers following the classical
 CPS reference model. Two *Raspberry Pi Zero 2W* nodes act as the physical
@@ -101,7 +108,7 @@ a cryptographically protected payload.
 
 
 #figure(
-image("./assets/cps_system_levels.svg", width: 75%),
+image("./assets/cps_system_levels.svg", width: 89%),
   caption: [CPS layer summary],
 )
 
@@ -109,9 +116,9 @@ image("./assets/cps_system_levels.svg", width: 75%),
 #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
 #v(0.4em)
 
-= Description of System Levels
+== Description of System Levels
 
-== Level 1 — Physical Layer
+=== Level 1 — Physical Layer
 
 The physical layer consists of two *Raspberry Pi Zero 2W* single-board
 computers, each running a headless *Alpine Linux* installation to minimize
@@ -123,7 +130,7 @@ physical deployments: limited CPU, limited RAM, no display, operated
 entirely over SSH. Their role is to sense (or, in this simulation, generate)
 events and forward them upstream.
 
-== Level 2 — Data Acquisition and Generation
+=== Level 2 — Data Acquisition and Generation
 
 Each node runs a compiled *Rust binary* responsible for producing synthetic
 bank transactions. A transaction is a structured record with the following
@@ -146,7 +153,7 @@ Records are serialized using a shared Rust crate common to both nodes and
 the server, ensuring a single canonical binary representation across the
 entire system.
 
-== Level 3 — Network / Datagram Layer
+=== Level 3 — Network / Datagram Layer
 
 Transactions are transmitted over *UDP sockets* as fixed-layout datagrams.
 Each datagram follows the structure below:
@@ -227,7 +234,7 @@ covers the entire datagram envelope — including cleartext metadata like
 `node_id`, `seq`, and `timestamp` — ensuring that any tampering with the
 unencrypted header is also detectable at the server.
 
-== Level 4 — Processing Layer
+=== Level 4 — Processing Layer
 
 The server-side processing pipeline operates in the following sequence:
 
@@ -249,7 +256,7 @@ The server-side processing pipeline operates in the following sequence:
 Flagged transactions are stored with an anomaly marker rather than
 discarded, preserving a complete audit trail.
 
-== Level 5 — Analytical Center
+=== Level 5 — Analytical Center
 
 The analytical center is a *DigitalOcean* droplet that hosts both the
 database and a lightweight web dashboard. Infrastructure is defined
@@ -269,9 +276,9 @@ required after initial deployment.
 #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
 #v(0.4em)
 
-= Calculation Algorithms
+== Calculation Algorithms
 
-== Anomaly Scoring (Sliding Window)
+=== Anomaly Scoring (Sliding Window)
 
 Let $W = {a_1, a_2, dots, a_N}$ be the amounts of the last $N = 50$
 transactions for a given node. Define:
@@ -296,7 +303,7 @@ The threshold $k$ is configurable. Velocity anomalies are detected by
 counting transactions whose timestamps fall within a sliding 60-second
 window and comparing against a configurable burst limit.
 
-== Datagram Integrity Pipeline
+=== Datagram Integrity Pipeline
 
 #align(center)[
   #block(
@@ -319,7 +326,7 @@ silently dropped and logged.
 #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
 #v(0.4em)
 
-= Monitoring
+== Monitoring
 
 The dashboard exposes the following live metrics:
 
@@ -339,8 +346,10 @@ The dashboard exposes the following live metrics:
 All metrics are updated on each dashboard refresh cycle (every ~3 seconds).
 Server-side logs retain the full event history for post-hoc analysis.
 
-= Scope
+== Scope
 
 The transaction system will be limited to check if the transaction is valid
 or not; therefore, balance and availability checks will be neglectedchecks
 will be neglected.
+
+= Implementation
