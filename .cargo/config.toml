@@ -1,0 +1,23 @@
+# Workspace-level Cargo configuration
+
+# ── Cross-compilation for sender (Raspberry Pi Zero 2W) ──────────────────────
+# Pi Zero 2W: Cortex-A53, 64-bit ARM. Alpine Linux uses musl libc.
+# Target: aarch64-unknown-linux-musl
+#
+# To add the target:
+#   rustup target add aarch64-unknown-linux-musl
+#
+# You also need a cross-linker. Options:
+#   - `cross` tool (recommended, uses Docker):  cargo install cross --git https://github.com/cross-rs/cross
+#     Usage: cross build --target aarch64-unknown-linux-musl -p sender --release
+#
+#   - Manual linker (install aarch64-linux-musl-gcc from your distro):
+#     Uncomment the [target.aarch64-unknown-linux-musl] block below.
+
+# [target.aarch64-unknown-linux-musl]
+# linker = "aarch64-linux-musl-gcc"
+
+# ── Build settings ────────────────────────────────────────────────────────────
+[build]
+# Parallelism is already auto-detected; override here if needed.
+# jobs = 4
