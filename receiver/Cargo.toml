@@ -7,7 +7,7 @@ license.workspace = true
 
 # Hosted on DigitalOcean — x86_64-unknown-linux-gnu
 [dependencies]
-tran_c = { workspace = true }
+disgrams = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
