@@ -19,7 +19,7 @@ impl Config {
                     .map_err(|v: Vec<u8>| anyhow!("expected 32 bytes, got {}", v.len()))?;
                 key = key_bytes;
             }
-            Err(e) => return Err(anyhow!("no CIPHER_KEY env detected :(")),
+            Err(_) => return Err(anyhow!("no CIPHER_KEY env detected :(")),
         }
         let target_host = env::var("TARGET_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
         let target_port = env::var("TARGET_PORT")

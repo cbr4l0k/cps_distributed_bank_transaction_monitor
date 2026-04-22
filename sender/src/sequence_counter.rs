@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{Context, Error, Result, anyhow};
 use std::{fs, path::PathBuf};
 
 pub struct SequenceCounter {
