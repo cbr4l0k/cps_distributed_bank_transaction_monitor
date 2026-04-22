@@ -37,3 +37,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Misc
 getrandom = "0.4.2"
+hex = "0.4"

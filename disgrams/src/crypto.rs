@@ -57,14 +57,6 @@ pub fn decrypt_packet(key: &[u8; 32], packet: &[u8]) -> Result<(Header, Transact
     Ok((header, transaction))
 }
 
-pub fn extract_node_id(packet: &[u8]) -> Result<u16> {
-    if packet.len() < 2 {
-        return Err(DisgramsError::InvalidPacketLength(packet.len(), 2));
-    }
-    let node_id = u16::from_be_bytes(packet[0..2].try_into().unwrap());
-    Ok(node_id)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{PACKET_LEN, decrypt_packet, encrypt_packet};

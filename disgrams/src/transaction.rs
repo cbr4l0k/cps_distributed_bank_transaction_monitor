@@ -52,6 +52,14 @@ impl Transaction {
             tx_type,
         })
     }
+
+    pub fn get_transaction_type_as_number(&self) -> u8 {
+        match self.tx_type {
+            TransactionType::Deposit => 0,
+            TransactionType::Withdrawal => 1,
+            TransactionType::Transfer => 2,
+        }
+    }
 }
 
 #[cfg(test)]

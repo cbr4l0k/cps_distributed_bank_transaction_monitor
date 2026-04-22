@@ -1,3 +1,4 @@
+use crate::errors::{DisgramsError, Result};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const HEADER_LEN: usize = 14;
@@ -53,6 +54,14 @@ impl Header {
             timestamp: Some(timestamp),
         }
     }
+}
+
+pub fn extract_node_id(packet: &[u8]) -> Result<u16> {
+    if packet.len() < 2 {
+        return Err(DisgramsError::InvalidPacketLength(packet.len(), 2));
+    }
+    let node_id = u16::from_be_bytes(packet[0..2].try_into().unwrap());
+    Ok(node_id)
 }
 
 #[cfg(test)]

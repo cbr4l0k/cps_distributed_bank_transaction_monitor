@@ -19,7 +19,7 @@ async fn main() -> Result<(), Error> {
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
 
-    let key = [7u8; 32];
+    let key = conf.get_cipher_key()?;
 
     let mut i = 0u32;
 
