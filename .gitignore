@@ -6,3 +6,4 @@ target
 *.pdb
 **/mutants.out*/
 *.db
+**/.sender_sequence_counter

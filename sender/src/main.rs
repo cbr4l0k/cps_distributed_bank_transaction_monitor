@@ -1,6 +1,9 @@
 mod config;
+mod sequence_counter;
+
 use anyhow::{Error, Result};
 use config::Config;
+use sequence_counter::SequenceCounter;
 use tokio::{
     net::UdpSocket,
     time::{Duration, sleep},
@@ -12,6 +15,8 @@ use disgrams::{
     transaction::{Transaction, TransactionType},
 };
 
+const SEQUENCE_COUNTER_PATH: &str = ".sender_sequence_counter";
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let conf = Config::build()?;
@@ -21,11 +26,11 @@ async fn main() -> Result<(), Error> {
 
     let key = conf.get_cipher_key()?;
 
-    let mut i = 0u32;
+    let mut sequence_counter = SequenceCounter::open(SEQUENCE_COUNTER_PATH)?;
 
     println!("Starting to send transactions to {}", target);
     loop {
-        let header = Header::new(369u16, i);
+        let header = Header::new(369u16, sequence_counter.current());
         let transaction = Transaction::new(1u32, 300f32, TransactionType::Deposit);
 
         let packet = encrypt_packet(
@@ -36,8 +41,7 @@ async fn main() -> Result<(), Error> {
         )?;
 
         socket.send_to(packet.as_slice(), target.clone()).await?;
-        // socket.send_to(b"\n", &target).await?;
-        i += 1;
+        sequence_counter.increment()?;
         sleep(Duration::from_millis(90)).await;
     }
 }
