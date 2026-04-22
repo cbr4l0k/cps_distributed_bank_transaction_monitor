@@ -11,7 +11,7 @@ pub const PACKET_LEN: usize = HEADER_LEN + NONCE_LEN + TRANSACTION_LEN + GCM_TAG
 
 pub fn encrypt_packet(
     key: &[u8; 32],
-    header: Header,
+    mut header: Header,
     nonce_bytes: [u8; 12],
     transaction: Transaction,
 ) -> Result<Vec<u8>> {
@@ -57,6 +57,14 @@ pub fn decrypt_packet(key: &[u8; 32], packet: &[u8]) -> Result<(Header, Transact
     Ok((header, transaction))
 }
 
+pub fn extract_node_id(packet: &[u8]) -> Result<u16> {
+    if packet.len() < 2 {
+        return Err(DisgramsError::InvalidPacketLength(packet.len(), 2));
+    }
+    let node_id = u16::from_be_bytes(packet[0..2].try_into().unwrap());
+    Ok(node_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{PACKET_LEN, decrypt_packet, encrypt_packet};
@@ -68,14 +76,16 @@ mod tests {
     fn encrypted_packet_round_trips_header_and_transaction() {
         let key = [7; 32];
         let nonce = [3; 12];
-        let header = Header::new(42, 1337, 1_700_000_000);
+        let header = Header::new(42, 1337);
         let transaction = Transaction::new(123, 45.5, TransactionType::Deposit);
 
         let packet = encrypt_packet(&key, header, nonce, transaction).unwrap();
         let (decoded_header, decoded_transaction) = decrypt_packet(&key, &packet).unwrap();
 
         assert_eq!(packet.len(), PACKET_LEN);
-        assert_eq!(decoded_header, header);
+        assert_eq!(decoded_header.node_id, header.node_id);
+        assert_eq!(decoded_header.seq, header.seq);
+        assert!(decoded_header.timestamp.is_some());
         assert_eq!(decoded_transaction, transaction);
     }
 
@@ -97,7 +107,7 @@ mod tests {
     fn decrypt_rejects_wrong_key() {
         let packet = encrypt_packet(
             &[7; 32],
-            Header::new(42, 1337, 1_700_000_000),
+            Header::new(42, 1337),
             [3; 12],
             Transaction::new(123, 45.5, TransactionType::Deposit),
         )

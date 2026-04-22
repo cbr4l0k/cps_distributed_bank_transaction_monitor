@@ -1,26 +1,44 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 pub const HEADER_LEN: usize = 14;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Header {
     pub node_id: u16,
     pub seq: u32,
-    pub timestamp: u64,
+    pub timestamp: Option<u64>,
 }
 
 impl Header {
-    pub fn new(node_id: u16, seq: u32, timestamp: u64) -> Self {
+    pub fn new(node_id: u16, seq: u32) -> Self {
         Header {
             node_id,
             seq,
-            timestamp,
+            timestamp: None,
         }
     }
 
-    pub fn to_byte_stream(self) -> [u8; 14] {
+    pub fn to_byte_stream(&mut self) -> [u8; 14] {
+        match self.timestamp {
+            Some(timestamp) => self.to_byte_stream_with_timestamp(timestamp),
+            None => self.to_byte_stream_update(),
+        }
+    }
+
+    pub fn to_byte_stream_update(&mut self) -> [u8; 14] {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros() as u64;
+        self.timestamp = Some(timestamp);
+        self.to_byte_stream_with_timestamp(timestamp)
+    }
+
+    fn to_byte_stream_with_timestamp(&self, timestamp: u64) -> [u8; 14] {
         let mut out = [0u8; 14];
         out[0..2].copy_from_slice(&self.node_id.to_be_bytes());
         out[2..6].copy_from_slice(&self.seq.to_be_bytes());
-        out[6..14].copy_from_slice(&self.timestamp.to_be_bytes());
+        out[6..14].copy_from_slice(&timestamp.to_be_bytes());
         out
     }
 
@@ -32,7 +50,7 @@ impl Header {
         Header {
             node_id,
             seq,
-            timestamp,
+            timestamp: Some(timestamp),
         }
     }
 }
@@ -42,11 +60,51 @@ mod tests {
     use super::Header;
 
     #[test]
-    fn header_round_trips_through_bytes() {
-        let header = Header::new(42, 1337, 1_700_000_000);
+    fn header_round_trips_node_id_and_seq() {
+        let mut header = Header::new(42, 1337);
 
         let decoded = Header::from_byte_stream(header.to_byte_stream());
 
-        assert_eq!(decoded, header);
+        assert_eq!(decoded.node_id, header.node_id);
+        assert_eq!(decoded.seq, header.seq);
+        assert!(decoded.timestamp.is_some());
+    }
+
+    #[test]
+    fn to_byte_stream_uses_existing_timestamp() {
+        let mut header = Header {
+            node_id: 42,
+            seq: 1337,
+            timestamp: Some(123_456),
+        };
+
+        let decoded = Header::from_byte_stream(header.to_byte_stream());
+
+        assert_eq!(decoded.timestamp, Some(123_456));
+        assert_eq!(header.timestamp, Some(123_456));
+    }
+
+    #[test]
+    fn to_byte_stream_updates_missing_timestamp() {
+        let mut header = Header::new(42, 1337);
+
+        let decoded = Header::from_byte_stream(header.to_byte_stream());
+
+        assert!(header.timestamp.is_some());
+        assert_eq!(decoded.timestamp, header.timestamp);
+    }
+
+    #[test]
+    fn to_byte_stream_update_replaces_existing_timestamp() {
+        let mut header = Header {
+            node_id: 42,
+            seq: 1337,
+            timestamp: Some(1),
+        };
+
+        let decoded = Header::from_byte_stream(header.to_byte_stream_update());
+
+        assert_ne!(header.timestamp, Some(1));
+        assert_eq!(decoded.timestamp, header.timestamp);
     }
 }

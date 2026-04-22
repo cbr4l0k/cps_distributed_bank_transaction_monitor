@@ -56,14 +56,14 @@ impl Transaction {
 
 #[cfg(test)]
 mod tests {
-    use super::{Transaction, TransactionType, from_byte_stream};
+    use super::{Transaction, TransactionType};
     use crate::errors::DisgramsError;
 
     #[test]
     fn transaction_round_trips_through_bytes() {
         let transaction = Transaction::new(123, 45.5, TransactionType::Withdrawal);
 
-        let decoded = from_byte_stream(transaction.to_byte_stream()).unwrap();
+        let decoded = Transaction::from_byte_stream(transaction.to_byte_stream()).unwrap();
 
         assert_eq!(decoded, transaction);
     }
@@ -73,7 +73,7 @@ mod tests {
         let mut bytes = [0; 9];
         bytes[8] = 99;
 
-        let err = from_byte_stream(bytes).unwrap_err();
+        let err = Transaction::from_byte_stream(bytes).unwrap_err();
 
         assert!(matches!(err, DisgramsError::InvalidTransactionType(99)));
     }
