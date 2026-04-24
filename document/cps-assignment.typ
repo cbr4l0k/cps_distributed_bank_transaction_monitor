@@ -80,19 +80,14 @@
 
 == Purpose of Use
 
-The system described in this document simulates a minimal banking
-infrastructure using two edge computing nodes — each acting as an independent
-transaction source — connected to a centralized analytical server. The
-primary objective is to study how cryptographically secured data can be
-collected, transmitted, validated, and monitored across a physically
-distributed system.
+The system simulates a minimal banking infrastructure: two edge computing
+nodes send synthetic transactions over an encrypted channel to a central
+server that validates, stores, and flags anomalies.
 
-Beyond its role as a course project, the design reflects a realistic pattern
-found in financial IoT deployments: constrained edge devices generate
-sensitive data, the data must remain confidential in transit, and a
-cloud-hosted center aggregates it for real-time anomaly detection. The
-system therefore exercises the full CPS stack, from physical hardware up to
-an interactive dashboard.
+The design follows a pattern common in financial IoT deployments: constrained
+edge devices generate sensitive data, the data must stay confidential in
+transit, and a cloud-hosted center catches anomalies. The implementation
+covers all five CPS layers.
 
 #v(0.4em)
 #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
@@ -100,11 +95,10 @@ an interactive dashboard.
 
 == System Architecture Overview
 
-The system is composed of five hierarchical layers following the classical
-CPS reference model. Two *Raspberry Pi Zero 2W* nodes act as the physical
-edge; a *DigitalOcean* droplet serves as the analytical center. Communication
-between nodes and server relies exclusively on *UDP datagrams*, each carrying
-a cryptographically protected payload.
+The system has five layers following the CPS reference model. Two
+*Raspberry Pi Zero 2W* nodes are the physical edge; a *DigitalOcean* droplet
+is the analytical center. All communication between nodes and server uses
+*UDP datagrams*, each carrying a cryptographically protected payload.
 
 
 #figure(
@@ -125,10 +119,9 @@ computers, each running a headless *Alpine Linux* installation to minimize
 resource overhead. Network connectivity is established via Wi-Fi, either
 through the campus network or a mobile hotspot as fallback.
 
-These nodes represent the constrained-device tier typical of real cyber-
-physical deployments: limited CPU, limited RAM, no display, operated
-entirely over SSH. Their role is to sense (or, in this simulation, generate)
-events and forward them upstream.
+These are the constrained end of the stack: limited CPU, limited RAM, no
+display, managed entirely over SSH. In this simulation they generate events
+rather than sense real ones, then forward them upstream.
 
 === Level 2 — Data Acquisition and Generation
 
@@ -150,8 +143,7 @@ fields:
 )
 
 Records are serialized using a shared Rust crate common to both nodes and
-the server, ensuring a single canonical binary representation across the
-entire system.
+the server, so there is one canonical binary format used throughout.
 
 === Level 3 — Network / Datagram Layer
 
@@ -267,10 +259,8 @@ entirely in *Terraform*, covering:
   sessions;
 - Droplet provisioning with a reproducible configuration.
 
-The dashboard provides a live feed of incoming transactions with an
-auto-refresh interval of a few seconds, displaying recent records, flagged
-anomalies, and per-node statistics. No manual server intervention is
-required after initial deployment.
+The dashboard shows a live feed of incoming transactions: recent records,
+flagged anomalies, and per-node statistics, refreshed every few seconds.
 
 #v(0.4em)
 #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
@@ -348,8 +338,197 @@ Server-side logs retain the full event history for post-hoc analysis.
 
 == Scope
 
-The transaction system will be limited to check if the transaction is valid
-or not; therefore, balance and availability checks will be neglectedchecks
-will be neglected.
+The transaction system only checks whether a transaction is cryptographically
+valid. Balance and availability checks are out of scope.
 
 = Implementation
+
+This section describes the system as actually built, including the decisions
+that diverged from the plan.
+
+== Project Structure
+
+The Rust workspace is split into three binaries and one shared library:
+
+#table(
+  columns: (auto, 1fr),
+  inset: 7pt,
+  stroke: 0.4pt + rgb("#bbbbbb"),
+  fill: (x, y) => if y == 0 { rgb("#f0f4f8") } else { white },
+  [*Crate / file*], [*Role*],
+  [`disgrams`],               [Shared library: packet layout, crypto, transaction types],
+  [`sender`],                 [Runs on each Raspberry Pi; generates and transmits datagrams],
+  [`receiver`],               [Runs on the DigitalOcean droplet; validates, decrypts, stores],
+  [`cps-bank-dashboard.py`],  [Python HTTP server; reads the SQLite database and serves a live view],
+)
+
+#v(0.4em)
+#line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
+#v(0.4em)
+
+== Datagram Format Revision
+
+The planned datagram used an outer HMAC-SHA256 to protect the cleartext header
+fields. During implementation this was replaced with a simpler approach: the
+header bytes are passed as *Additional Authenticated Data (AAD)* directly to
+the AES-256-GCM cipher. The GCM authentication tag covers both the ciphertext
+and the AAD, so any modification to the cleartext header causes decryption to
+fail without needing a separate HMAC pass.
+
+The revised structure is:
+
+#align(center)[
+  #block(
+    fill: rgb("#f7f9fb"),
+    stroke: 0.5pt + rgb("#b0bec5"),
+    radius: 4pt,
+    inset: 10pt,
+  )[
+    #text(font: "Courier New", size: 9.5pt)[
+      `[node_id:2B][seq:4B][timestamp:8B][nonce:12B][ciphertext:9B][gcm_tag:16B]`
+    ]
+  ]
+]
+
+#v(0.3em)
+
+Total packet size is 51 bytes. The 32-byte outer HMAC from the plan is gone;
+the 16-byte GCM tag takes over both roles. The `Transaction` struct is
+serialized manually (big-endian fields, no C alignment padding), so it fits in
+9 bytes rather than the 12 assumed in the planning phase.
+
+#v(0.4em)
+#line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
+#v(0.4em)
+
+== Sender
+
+The sender binary reads its configuration from environment variables:
+`CIPHER_KEY` (hex-encoded 32-byte key), `NODE_ID`, `TARGET_HOST`, and
+`TARGET_PORT`. A missing `CIPHER_KEY` is a fatal error at startup; everything
+else falls back to a safe default.
+
+The sequence counter is stored as a plain text file
+(`.sender_sequence_counter_{node_id}`) with owner-only permissions (`0600`).
+It is loaded at startup and written to disk after every successful send, so
+the counter survives restarts without replay-attack risk.
+
+=== Transaction Generator
+
+Transaction amounts and timing are produced by a seeded
+linear-congruential generator (LCG). A custom LCG instead of a dependency
+keeps the binary cross-compilable for `armv6` (the Raspberry Pi Zero 2W
+target) without pulling in crates that may not support the target.
+
+Normal transactions are generated every 3.5–7 seconds with amounts between
+10 and 500 arbitrary units. Every eighth transaction is a suspicious outlier
+with an amount between 5 001 and 25 000 units, enough to trip the
+amount-based alert on the dashboard.
+
+Velocity anomalies are injected using a burst pattern: after every 42 normal
+transactions the sender fires 10 packets at 20–80 ms intervals, then pauses
+for 65 seconds before resuming normal cadence. This creates a repeatable
+velocity spike that the monitoring layer can observe.
+
+=== Physical Tamper Mode
+
+The sender checks for the existence of a file whose path is given by the
+`TAMPER_FILE` environment variable. When that file is present, every
+outgoing packet is replaced with a fixed suspicious transaction
+(`account_id=999 999`, `amount=25 000`, `tx_type=Transfer`). The file can
+later be wired to a GPIO pin connected to a push button or reed switch,
+simulating a tamper event at the physical layer. For now the triggering is
+done in software; the actual GPIO wiring is part of the second assignment.
+
+#v(0.4em)
+#line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
+#v(0.4em)
+
+== Receiver
+
+The receiver is an async Tokio binary. On startup it connects to a SQLite
+database (via `sqlx`) and generates a random 32-byte AES key for each
+configured node ID, storing it with `INSERT OR IGNORE` so keys persist across
+restarts. The key for each node is printed to stdout, allowing the operator to
+copy it into the matching sender's environment.
+
+For each incoming UDP datagram the receiver:
+
++ Reads the first two bytes to identify the originating node.
++ Fetches that node's key from the database.
++ Calls `decrypt_packet`, which verifies the GCM tag (covering both header
+  and ciphertext) and decrypts the payload.
++ On success, inserts the transaction into `received_transactions`.
+  On failure, logs the error and discards the packet.
+
+The `received_transactions` table has a `UNIQUE (node_id, seq)` constraint,
+so a replayed datagram is silently rejected at the insert level.
+
+#v(0.4em)
+#line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
+#v(0.4em)
+
+== Dashboard
+
+The dashboard is a single Python script serving a minimal HTML page over HTTP.
+It reads directly from the SQLite database on each request and refreshes every
+5 seconds. Two alert conditions are evaluated on each render:
+
+- *Huge amount:* any transaction in the last 25 records with `amount ≥ 5 000`.
+- *Stale node:* any node whose most recent transaction is older than 60 seconds.
+
+The sliding-window $sigma$-based anomaly scoring described in the plan is not
+yet wired up to the dashboard. The `get_last_fifty_trans` function exists in
+the receiver codebase and the math is correct, but the result is currently not
+passed to the dashboard or stored as an anomaly marker.
+
+#v(0.4em)
+#line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
+#v(0.4em)
+
+== Deployment
+
+Three systemd services manage the running processes: `cps-bank-receiver`,
+`cps-bank-dashboard`, and `cps-bank-sender`. Each runs under a dedicated
+`cpsbank` user with a restricted privilege set (`NoNewPrivileges`,
+`ProtectSystem`, `ProtectHome`, `PrivateTmp`). The receiver and dashboard
+share the same database file at `/var/lib/cps-bank/receiver.db`.
+
+The cloud infrastructure is defined in Terraform under `infra/terraform/`.
+A single `terraform apply` provisions the full stack:
+
++ *Droplet:* an Ubuntu 24.04 `s-1vcpu-1gb` instance in the `nyc1` region,
+  bootstrapped via a `cloud-init` template that installs the binaries and
+  registers the systemd services.
++ *SSH key:* the operator's public key is uploaded to DigitalOcean and
+  injected into the droplet at creation time, so no password is ever set.
++ *Firewall:*  three inbound rules are created:
+  - SSH (TCP 22) allowed only from the `admin_cidrs` variable.
+  - Receiver (UDP 9876) allowed only from `pi_cidrs` — the IP ranges of the
+    Raspberry Pi nodes. Any datagram arriving from an address outside that
+    list is dropped by the firewall before it even reaches the process.
+  - Dashboard (TCP 8080) allowed only from `admin_cidrs`.
+  All outbound traffic is unrestricted.
++ *Output:* after `apply`, Terraform prints the droplet's public IP, which
+  is then copied into the sender's `TARGET_HOST` environment variable on
+  each Raspberry Pi.
+
+The IP allowlist exists because the Raspberry Pi addresses are fixed and
+known ahead of time. Blocking unknown sources at the firewall before packets
+reach the process is free hardening with no application changes needed.
+
+#v(0.4em)
+#line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
+#v(0.4em)
+
+== What Is Still Missing
+
+The GPIO wiring is not done yet. The physical buttons and LEDs described in
+the plan — 2 push buttons, 4 LEDs, resistors, jumper wires — are still
+unconnected. The `TAMPER_FILE` mechanism is a software stand-in for now;
+the actual wiring is deferred to the second assignment.
+
+Network provisioning on ITMO's campus network has been more challenging than
+expected. Certificate issues and NTP synchronization on the Raspberry Pi Zero 2W
+nodes required manual intervention, so the end-to-end test between the physical
+nodes and the DigitalOcean droplet is still pending.
