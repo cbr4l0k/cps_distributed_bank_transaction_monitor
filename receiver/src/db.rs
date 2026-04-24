@@ -1,7 +1,6 @@
 use anyhow::{Error, Result, anyhow};
 use disgrams::{datagram::Header, transaction::Transaction};
 use getrandom::fill;
-use hex;
 use sqlx::{Row, SqlitePool, sqlite::SqliteConnectOptions};
 use std::str::FromStr;
 
@@ -39,6 +38,7 @@ async fn migrate(db: &SqlitePool) -> Result<(), Error> {
     )
     .execute(db)
     .await?;
+
     Ok(())
 }
 
@@ -72,12 +72,19 @@ pub async fn insert_transaction(
     transaction: &Transaction,
 ) -> Result<(), Error> {
     sqlx::query(
-        "INSERT INTO received_transactions (node_id, seq, sent_timestamp_us, account_id, amount, tx_type)
+        "INSERT INTO received_transactions (
+            node_id,
+            seq,
+            sent_timestamp_us,
+            account_id,
+            amount,
+            tx_type
+         )
          VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(header.node_id as i64)
     .bind(header.seq as i64)
-    .bind(header.timestamp.expect("no timestamp can't happen'") as i64)
+    .bind(header.timestamp.expect("no timestamp can't happen") as i64)
     .bind(transaction.account_id as i64)
     .bind(transaction.amount)
     .bind(transaction.get_transaction_type_as_number())
@@ -86,8 +93,41 @@ pub async fn insert_transaction(
     Ok(())
 }
 
-// get key as hex string for debugging
 pub async fn get_key_for_node_as_hex(db: &SqlitePool, node_id: u16) -> Result<String, Error> {
     let key = get_key_for_node(db, node_id).await?;
     Ok(hex::encode(key))
+}
+
+pub async fn get_last_fifty_trans(db: &SqlitePool) -> Result<Vec<Transaction>, Error> {
+    let rows = sqlx::query(
+        "SELECT account_id, amount, tx_type FROM received_transactions
+         ORDER BY sent_timestamp_us DESC
+         LIMIT 50",
+    )
+    .fetch_all(db)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| row_to_transaction(&row))
+        .collect()
+}
+
+fn row_to_transaction(row: &sqlx::sqlite::SqliteRow) -> Result<Transaction, Error> {
+    let account_id = row.try_get::<i64, _>("account_id")? as u32;
+    let amount = row.try_get::<f32, _>("amount")?;
+    let tx_type_num = row.try_get::<i64, _>("tx_type")? as u8;
+    let tx_type = match tx_type_num {
+        0 => disgrams::transaction::TransactionType::Deposit,
+        1 => disgrams::transaction::TransactionType::Withdrawal,
+        2 => disgrams::transaction::TransactionType::Transfer,
+        _ => {
+            return Err(anyhow!("invalid transaction type: {tx_type_num}"));
+        }
+    };
+
+    Ok(Transaction {
+        account_id,
+        amount,
+        tx_type,
+    })
 }

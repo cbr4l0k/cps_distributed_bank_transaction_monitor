@@ -1,12 +1,20 @@
 use anyhow::{Context, Error, Result};
 use disgrams::transaction::{Transaction, TransactionType};
 use getrandom::fill;
+use std::time::Duration;
 
-const DEFAULT_SUSPICIOUS_EVERY: u64 = 25;
+const DEFAULT_SUSPICIOUS_EVERY: u64 = 8;
 const NORMAL_MIN_AMOUNT: f32 = 10.0;
 const NORMAL_MAX_AMOUNT: f32 = 500.0;
 const SUSPICIOUS_MIN_AMOUNT: f32 = 5_001.0;
 const SUSPICIOUS_MAX_AMOUNT: f32 = 25_000.0;
+const NORMAL_MIN_SEND_INTERVAL_MS: u64 = 3_500;
+const NORMAL_MAX_SEND_INTERVAL_MS: u64 = 7_000;
+const BURST_MIN_SEND_INTERVAL_MS: u64 = 20;
+const BURST_MAX_SEND_INTERVAL_MS: u64 = 80;
+const POST_BURST_COOLDOWN_MS: u64 = 65_000;
+const NORMAL_DELAYS_BEFORE_BURST: u8 = 42;
+const BURST_DELAY_COUNT: u8 = 10;
 const MIN_ACCOUNT_ID: u32 = 1;
 const MAX_ACCOUNT_ID: u32 = 20;
 
@@ -26,6 +34,9 @@ pub struct TransactionGenerator {
     rng: Lcg,
     suspicious_every: u64,
     generated_count: u64,
+    normal_delays_before_burst: u8,
+    burst_delays_remaining: u8,
+    post_burst_cooldown_pending: bool,
 }
 
 impl TransactionGenerator {
@@ -44,6 +55,9 @@ impl TransactionGenerator {
             rng: Lcg::new(seed),
             suspicious_every,
             generated_count: 0,
+            normal_delays_before_burst: NORMAL_DELAYS_BEFORE_BURST,
+            burst_delays_remaining: 0,
+            post_burst_cooldown_pending: false,
         }
     }
 
@@ -54,6 +68,39 @@ impl TransactionGenerator {
         } else {
             self.normal_transaction()
         }
+    }
+
+    pub fn next_delay(&mut self) -> Duration {
+        if self.post_burst_cooldown_pending {
+            self.post_burst_cooldown_pending = false;
+            return Duration::from_millis(POST_BURST_COOLDOWN_MS);
+        }
+
+        if self.burst_delays_remaining > 0 {
+            self.burst_delays_remaining -= 1;
+            if self.burst_delays_remaining == 0 {
+                self.normal_delays_before_burst = NORMAL_DELAYS_BEFORE_BURST;
+                self.post_burst_cooldown_pending = true;
+            }
+            return Duration::from_millis(
+                self.rng
+                    .range_u64(BURST_MIN_SEND_INTERVAL_MS, BURST_MAX_SEND_INTERVAL_MS),
+            );
+        }
+
+        if self.normal_delays_before_burst == 0 {
+            self.burst_delays_remaining = BURST_DELAY_COUNT - 1;
+            return Duration::from_millis(
+                self.rng
+                    .range_u64(BURST_MIN_SEND_INTERVAL_MS, BURST_MAX_SEND_INTERVAL_MS),
+            );
+        }
+
+        self.normal_delays_before_burst -= 1;
+        Duration::from_millis(
+            self.rng
+                .range_u64(NORMAL_MIN_SEND_INTERVAL_MS, NORMAL_MAX_SEND_INTERVAL_MS),
+        )
     }
 
     fn normal_transaction(&mut self) -> GeneratedTransaction {
@@ -120,6 +167,11 @@ impl Lcg {
         min + self.next_u32() % span
     }
 
+    fn range_u64(&mut self, min: u64, max: u64) -> u64 {
+        let span = max - min + 1;
+        min + u64::from(self.next_u32()) % span
+    }
+
     fn unit_f32(&mut self) -> f32 {
         self.next_u32() as f32 / u32::MAX as f32
     }
@@ -127,7 +179,11 @@ impl Lcg {
 
 #[cfg(test)]
 mod tests {
-    use super::{SuspicionReason, TransactionGenerator};
+    use super::{
+        BURST_DELAY_COUNT, BURST_MAX_SEND_INTERVAL_MS, BURST_MIN_SEND_INTERVAL_MS,
+        NORMAL_DELAYS_BEFORE_BURST, NORMAL_MAX_SEND_INTERVAL_MS, NORMAL_MIN_SEND_INTERVAL_MS,
+        SuspicionReason, TransactionGenerator,
+    };
     use disgrams::transaction::TransactionType;
 
     #[test]
@@ -168,6 +224,56 @@ mod tests {
         assert_eq!(
             suspicious_flags,
             vec![false, false, false, true, false, false, false, true]
+        );
+    }
+
+    #[test]
+    fn send_intervals_are_variable_within_expected_bounds() {
+        let mut generator = TransactionGenerator::with_seed(19);
+
+        let intervals = (0..12)
+            .map(|_| generator.next_delay().as_millis())
+            .collect::<Vec<_>>();
+
+        assert!(intervals.iter().all(|ms| {
+            (u128::from(NORMAL_MIN_SEND_INTERVAL_MS)..=u128::from(NORMAL_MAX_SEND_INTERVAL_MS))
+                .contains(ms)
+        }));
+        assert!(intervals.windows(2).any(|window| window[0] != window[1]));
+    }
+
+    #[test]
+    fn normal_interval_stays_below_receiver_velocity_limit() {
+        let fastest_normal_transactions_per_minute = 60_000 / NORMAL_MIN_SEND_INTERVAL_MS;
+
+        assert!(fastest_normal_transactions_per_minute < 20);
+    }
+
+    #[test]
+    fn velocity_burst_returns_to_normal_speed() {
+        let mut generator = TransactionGenerator::with_seed(23);
+
+        let normal_before_burst = (0..NORMAL_DELAYS_BEFORE_BURST)
+            .map(|_| generator.next_delay().as_millis())
+            .collect::<Vec<_>>();
+        let burst = (0..BURST_DELAY_COUNT)
+            .map(|_| generator.next_delay().as_millis())
+            .collect::<Vec<_>>();
+        let cooldown = generator.next_delay().as_secs();
+        let normal_after_burst = generator.next_delay().as_millis();
+
+        assert!(normal_before_burst.iter().all(|ms| {
+            (u128::from(NORMAL_MIN_SEND_INTERVAL_MS)..=u128::from(NORMAL_MAX_SEND_INTERVAL_MS))
+                .contains(ms)
+        }));
+        assert!(burst.iter().all(|ms| {
+            (u128::from(BURST_MIN_SEND_INTERVAL_MS)..=u128::from(BURST_MAX_SEND_INTERVAL_MS))
+                .contains(ms)
+        }));
+        assert!(cooldown > 60);
+        assert!(
+            (u128::from(NORMAL_MIN_SEND_INTERVAL_MS)..=u128::from(NORMAL_MAX_SEND_INTERVAL_MS))
+                .contains(&normal_after_burst)
         );
     }
 }

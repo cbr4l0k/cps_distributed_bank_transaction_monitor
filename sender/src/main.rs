@@ -5,10 +5,7 @@ mod transaction_generator;
 use anyhow::{Error, Result};
 use config::Config;
 use sequence_counter::SequenceCounter;
-use tokio::{
-    net::UdpSocket,
-    time::{Duration, sleep},
-};
+use tokio::{net::UdpSocket, time::sleep};
 use transaction_generator::TransactionGenerator;
 
 use disgrams::{crypto::encrypt_packet, datagram::Header};
@@ -48,6 +45,6 @@ async fn main() -> Result<(), Error> {
 
         socket.send_to(packet.as_slice(), target.clone()).await?;
         sequence_counter.increment()?;
-        sleep(Duration::from_millis(90)).await;
+        sleep(transaction_generator.next_delay()).await;
     }
 }
