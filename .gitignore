@@ -7,3 +7,4 @@ target
 **/mutants.out*/
 *.db
 **/.sender_sequence_counter
+.codex

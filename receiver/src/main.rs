@@ -21,10 +21,14 @@ async fn main() -> Result<(), Error> {
 
     let pool = db::connect(conf.get_db_url()?).await?;
 
-    db::generate_key_for_node(&pool, 369u16).await?;
-    db::generate_key_for_node(&pool, 963u16).await?;
-
-    println!("{}", get_key_for_node_as_hex(&pool, 369u16).await?);
+    for node_id in conf.get_node_ids() {
+        db::generate_key_for_node(&pool, *node_id).await?;
+        println!(
+            "NODE_KEY node_id={} key_hex={}",
+            node_id,
+            get_key_for_node_as_hex(&pool, *node_id).await?
+        );
+    }
 
     loop {
         let (n, addr) = socket.recv_from(&mut buf).await?;
