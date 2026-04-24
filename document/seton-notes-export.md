@@ -360,3 +360,26 @@ The project is not only a local simulation.
 
 It uses real Raspberry Pi devices, a real network, and a real server deployed in
 DigitalOcean.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- missing
+
+# Stuff I'm missing :D
+
+## The hardware stuff, I should buy:
+
+- 2 push buttons or magnetic reed switches
+- 4 LEDs
+- 4 resistors, 220Ω to 330Ω
+- jumper wires and breadboard
+
+## Networking issues
+
+Arranging the interconnection between the Raspberries and the DO server has
+been more challenging than expected... because of the network restrictions,
+getting certificates, even updating the internal clock of the raspberries
+has been challenging; therefore, will be part of the second assingment.
