@@ -112,3 +112,251 @@ auto-refresh of every couple of seconds.
 This part will be deployed using terraform, to keep consistency, with the
 firewall for port oppening. And for the SSH key injection so that the
 processing layer is able to check and decipher the incoming packages.
+
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- terraform
+
+# Terraform idea
+
+Terraform is being used to create the cloud part of the project.
+
+The goal is to avoid creating the DigitalOcean server manually, because then the
+setup would be harder to repeat or explain.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- digital ocean
+
+# DigitalOcean droplet
+
+The droplet is the central server of the system.
+
+It will receive the datagrams sent by the Raspberry Pi nodes and run the
+`receiver` binary.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- cost
+
+# Cheap infrastructure
+
+The infrastructure is intentionally small.
+
+Only one droplet is used, because this project only needs to receive data from
+two Raspberry Pi nodes.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- terraform
+
+# Why not more cloud services
+
+There is no Kubernetes, no managed database, and no load balancer.
+
+For this demo, that would be too much and not really needed.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- raspberry pi
+
+# Raspberry Pi nodes
+
+The two Raspberry Pi Zero 2W boards are the physical nodes.
+
+Each one runs the `sender` binary and generates synthetic bank transactions.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- nodes
+
+# Node identity
+
+Each Raspberry Pi has a different `node_id`.
+
+This is needed so the server can know which physical node sent each transaction.
+
+---
+Context:
+
+- cyber-physical systems
+- project
+- network
+
+# Node to server relationship
+
+The relationship is simple:
+
+```text
+Raspberry Pi 1 ---> DigitalOcean receiver
+Raspberry Pi 2 ---> DigitalOcean receiver
+```
+
+Both nodes send data to the same server.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- UDP
+
+# UDP port
+
+The receiver listens on a UDP port.
+
+Terraform opens this port in the firewall, so the Raspberry Pis can send the
+datagrams to the droplet.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- firewall
+
+# Firewall
+
+The firewall is created with terraform too.
+
+Only the ports needed for the project should be opened.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- SSH
+
+# SSH access
+
+Terraform adds my SSH key to the droplet.
+
+This lets me connect to the server without setting a password manually.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- deployment
+
+# Terraform output
+
+After creating the droplet, terraform gives back the public IP.
+
+That IP is then used in the Raspberry Pi sender configuration.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- CPS Levels
+
+# Physical layer match
+
+The physical layer is represented by the two Raspberry Pis.
+
+Terraform does not create this part, because these are real devices.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- CPS Levels
+
+# Data generation match
+
+Each Raspberry Pi generates transactions locally.
+
+The data is not created in the cloud, it starts from the physical nodes.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- CPS Levels
+
+# Network layer match
+
+The network layer is the UDP communication between the Raspberry Pis and the
+droplet.
+
+The datagrams travel through the network to the receiver.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- CPS Levels
+
+# Processing layer match
+
+The receiver running in the droplet checks and processes the datagrams.
+
+This is where the transaction becomes useful data for the system.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- CPS Levels
+
+# Analytical center match
+
+The droplet is the analytical center.
+
+It stores the valid transactions and can show what is happening in the system.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- current work
+
+# Current infrastructure work
+
+The current work is to connect the physical Raspberry Pi nodes with the cloud
+receiver.
+
+Terraform creates the cloud side, and the Raspberry Pis connect to it after
+that.
+
+---
+
+Context:
+- cyber-physical systems
+- project
+- final idea
+
+# Final idea
+
+The project is not only a local simulation.
+
+It uses real Raspberry Pi devices, a real network, and a real server deployed in
+DigitalOcean.

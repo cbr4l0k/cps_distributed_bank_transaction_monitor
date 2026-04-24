@@ -8,3 +8,4 @@ target
 *.db
 **/.sender_sequence_counter
 .codex
+tmp/*
