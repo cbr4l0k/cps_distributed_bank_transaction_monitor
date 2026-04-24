@@ -1,0 +1,33 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - build-essential
+  - pkg-config
+  - libssl-dev
+  - sqlite3
+  - python3
+  - ufw
+
+write_files:
+  - path: /etc/motd
+    permissions: '0644'
+    content: |
+      cps-bank-receiver is ready for bootstrap.
+      Next: copy this adapter into the repo, apply the patch, then run scripts/bootstrap_droplet.sh.
+
+runcmd:
+  - [bash, -lc, "fallocate -l 2G /swapfile || true"]
+  - [bash, -lc, "chmod 600 /swapfile || true"]
+  - [bash, -lc, "mkswap /swapfile || true"]
+  - [bash, -lc, "swapon /swapfile || true"]
+  - [bash, -lc, "grep -q /swapfile /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab"]
+  - [bash, -lc, "ufw default deny incoming"]
+  - [bash, -lc, "ufw default allow outgoing"]
+  - [bash, -lc, "ufw allow 22/tcp"]
+  - [bash, -lc, "ufw allow ${receiver_port}/udp"]
+  - [bash, -lc, "ufw allow ${dashboard_port}/tcp"]
+  - [bash, -lc, "ufw --force enable"]

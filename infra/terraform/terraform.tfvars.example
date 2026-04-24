@@ -1,0 +1,9 @@
+do_token            = "dop_v1_your_token_here"
+region              = "nyc1"
+droplet_size        = "s-1vcpu-1gb"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+
+# must update according to the current public ip address
+# Use: curl -4 ifconfig.me
+admin_cidrs = ["203.0.113.10/32"]
+pi_cidrs    = ["203.0.113.10/32"]
