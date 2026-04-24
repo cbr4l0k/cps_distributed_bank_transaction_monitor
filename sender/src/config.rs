@@ -1,12 +1,14 @@
 use anyhow::{Error, Result, anyhow};
 use getrandom::fill;
-use std::env;
+use std::{env, path::PathBuf};
 
 #[derive(Debug)]
 pub struct Config {
+    node_id: u16,
     target_host: String,
     target_port: u16,
     key: [u8; 32],
+    tamper_file: Option<PathBuf>,
 }
 
 impl Config {
@@ -21,17 +23,28 @@ impl Config {
             }
             Err(_) => return Err(anyhow!("no CIPHER_KEY env detected :(")),
         }
+        let node_id = env::var("NODE_ID")
+            .unwrap_or_else(|_| "369".to_string())
+            .parse::<u16>()
+            .map_err(|e| Error::new(e).context("Failed to parse NODE_ID"))?;
         let target_host = env::var("TARGET_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
         let target_port = env::var("TARGET_PORT")
             .unwrap_or_else(|_| "9876".to_string())
             .parse::<u16>()
             .map_err(|e| Error::new(e).context("Failed to parse TARGET_PORT"))?;
+        let tamper_file = env::var("TAMPER_FILE").ok().map(PathBuf::from);
 
         Ok(Config {
+            node_id,
             target_host,
             target_port,
             key,
+            tamper_file,
         })
+    }
+
+    pub fn get_node_id(&self) -> u16 {
+        self.node_id
     }
 
     pub fn get_address(&self) -> Result<String, Error> {
@@ -46,5 +59,11 @@ impl Config {
 
     pub fn get_cipher_key(&self) -> Result<&[u8; 32], Error> {
         Ok(&self.key)
+    }
+    pub fn tamper_active(&self) -> bool {
+        self.tamper_file
+            .as_ref()
+            .map(|p| p.exists())
+            .unwrap_or(false)
     }
 }
