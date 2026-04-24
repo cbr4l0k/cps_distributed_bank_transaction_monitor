@@ -1,0 +1,25 @@
+[Unit]
+Description=CPS Distributed Bank Transaction Receiver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cpsbank
+Group=cpsbank
+WorkingDirectory=/var/lib/cps-bank
+Environment=OPEN_HOST=0.0.0.0
+Environment=OPEN_PORT=9876
+Environment=NODE_IDS=369,963
+Environment=DB_URL=sqlite:/var/lib/cps-bank/receiver.db
+ExecStart=/usr/local/bin/cps-bank-receiver
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/cps-bank
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

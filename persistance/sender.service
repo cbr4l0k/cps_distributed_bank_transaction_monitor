@@ -1,0 +1,18 @@
+[Unit]
+Description=CPS Bank Sender Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/cps_distributed_bank_transaction_monitor
+EnvironmentFile=/etc/cps-bank/sender.env
+ExecStart=/home/pi/cps_distributed_bank_transaction_monitor/target/release/sender
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

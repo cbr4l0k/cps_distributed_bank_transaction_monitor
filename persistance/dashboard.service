@@ -1,0 +1,22 @@
+[Unit]
+Description=CPS Bank Receiver Tiny Dashboard
+After=receiver.service
+
+[Service]
+Type=simple
+User=cpsbank
+Group=cpsbank
+Environment=CPS_DB=/var/lib/cps-bank/receiver.db
+Environment=CPS_DASHBOARD_HOST=0.0.0.0
+Environment=CPS_DASHBOARD_PORT=8080
+ExecStart=/usr/bin/python3 /usr/local/bin/cps-bank-dashboard.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/cps-bank
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
